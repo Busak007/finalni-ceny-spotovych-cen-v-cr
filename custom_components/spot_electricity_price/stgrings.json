@@ -1,0 +1,31 @@
+{
+  "config": {
+    "title": "Spotové ceny",
+    "step": {
+      "user": {
+        "title": "Konfigurace spotových cen",
+        "description": "Nastavte parametry pro výpočet ceny elektřiny.",
+        "data": {
+          "name": "Název",
+          "distributor": "Distributor",
+          "code_a": "Kód elektroměru",
+          "price_nt": "Cena NT",
+          "price_vt": "Cena VT",
+          "spot_price_entity": "Entita spotové ceny",
+          "hdo_entity": "HDO entita",
+          "prodej": "Cena za prodej",
+          "dan_z_elektriny": "Daň z elektřiny",
+          "cena_systemovych_sluzeb": "Cena systémových služeb",
+          "oze": "OZE poplatek",
+          "vykup": "Výkupní cena"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nepodařilo se připojit"
+    },
+    "abort": {
+      "already_configured": "Tato konfigurace již existuje"
+    }
+  }
+}
