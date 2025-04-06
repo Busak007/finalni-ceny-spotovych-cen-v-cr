@@ -24,8 +24,8 @@ Základní spotová cena - https://github.com/rnovacek/homeassistant_cz_energy_s
 
 Vyčítání HDO stavu z portálu: 
 - EG.D - https://github.com/Antrac1t/HomeAssistant-EGDdistribuce
-- ČEZ  - https://github.com/zigul/HomeAssistant-CEZdistribuce
 - PRE  - https://github.com/slesinger/HomeAssistant-PREdistribuce
+- ČEZ  - https://github.com/zigul/HomeAssistant-CEZdistribuce - prozatím nefunkční
 
 Má konfigurace configuration.yaml pro EG.D HDO
 ```
