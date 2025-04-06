@@ -108,9 +108,10 @@ series:
       duration: 1hour
     unit: Kč/kWh
     data_generator: >
-      return  Object.entries(entity.attributes.Spot_data).map(([date, value],
+      return  Object.entries(entity.attributes.Vykup_data).map(([date, value],
       index) => {
         return [new Date(date).getTime(), value];
       });
+
 ```
 
