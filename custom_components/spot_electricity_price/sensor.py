@@ -99,12 +99,30 @@ class SpotElectricitySensor(SensorEntity):
 
             elif self._sensor_type == "Výkup":
                 celkove = spot_price + self._vykup
+                
+                # Vytvoříme slovník pro hodinové výkupní ceny
+                vykup_data = {}
+                
+                # Zpracování dat ze spotových cen s přidáním výkupní ceny
+                if spot_obj and spot_obj.attributes:
+                    for timestamp, value in spot_obj.attributes.items():
+                        try:
+                            # Zkusíme převést hodnotu na float a přičteme výkupní cenu
+                            spot_value = float(value)
+                            vykup_value = spot_value + self._vykup
+                            # Uložíme do nového slovníku se stejnou časovou značkou
+                            vykup_data[timestamp] = round(vykup_value, 2)
+                        except (ValueError, TypeError):
+                            # Pokud převod selže, přeskočíme tuto položku
+                            _LOGGER.warning(f"Neplatná hodnota spot price pro čas {timestamp}")
+                            
                 self._attributes = {
                     "Detaily": {
                         "spotova_cena": f"{round(spot_price, 2)} Kč",
                         "vykup": f"{round(self._vykup, 2)} Kč",
                     },
-                    "Spot_data": spot_obj.attributes if spot_obj else {}
+                    "Spot_data": spot_obj.attributes if spot_obj else {},
+                    "Vykup_data": vykup_data
                 }
             elif self._sensor_type == "Distributor":
                 self._state = self._distributor
