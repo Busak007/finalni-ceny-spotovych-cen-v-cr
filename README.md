@@ -49,7 +49,7 @@ now:
   label: Nyní
   color: green
 series:
-  - entity: sensor.spotove_ceny_soucet
+  - entity: sensor.soucet
     name: Nákup
     color: orange
     type: column
@@ -62,7 +62,7 @@ series:
       index) => {
         return [new Date(date).getTime(), value];
       });
-  - entity: sensor.spotove_ceny_vykup
+  - entity: sensor.vykup
     name: Výkup
     color: green
     type: line
@@ -75,6 +75,5 @@ series:
       index) => {
         return [new Date(date).getTime(), value];
       });
-
 ```
 
