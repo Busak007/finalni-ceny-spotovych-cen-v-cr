@@ -47,6 +47,7 @@ span:
 now:
   show: true
   label: Nyní
+  color: green
 series:
   - entity: sensor.spotove_ceny_soucet
     name: Nákup
