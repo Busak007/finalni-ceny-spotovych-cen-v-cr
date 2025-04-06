@@ -29,3 +29,51 @@ Po instalaci přidejte integraci přes Nastavení > Zařízení a služby > Inte
 - Entita spotové ceny: Entita poskytující spotové ceny (bez DPH)
 - HDO entita: Entita poskytující informace o HDO (bez DPH)
 - Další parametry pro výpočet ceny elektřiny (bez DPH)
+
+
+## Přidání grafu do lovelace 
+![electricity prices graph](docs/lovelace_graf.png)
+```
+type: custom:apexcharts-card
+header:
+  show: true
+  show_states: true
+  colorize_states: true
+graph_span: 2d
+stacked: false
+span:
+  start: day
+  offset: +0d
+now:
+  show: true
+  label: Nyní
+series:
+  - entity: sensor.spotove_ceny_soucet
+    name: Nákup
+    color: orange
+    type: column
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+    data_generator: >
+      return  Object.entries(entity.attributes.Celkem).map(([date, value],
+      index) => {
+        return [new Date(date).getTime(), value];
+      });
+  - entity: sensor.spotove_ceny_vykup
+    name: Výkup
+    color: green
+    type: line
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+    data_generator: >
+      return  Object.entries(entity.attributes.Spot_data).map(([date, value],
+      index) => {
+        return [new Date(date).getTime(), value];
+      });
+
+```
+
