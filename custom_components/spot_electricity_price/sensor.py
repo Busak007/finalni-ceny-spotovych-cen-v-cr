@@ -98,7 +98,7 @@ class SpotElectricitySensor(SensorEntity):
                 }
 
             elif self._sensor_type == "Výkup":
-                celkove = spot_price * 1.21 + self._vykup
+                celkove = spot_price + self._vykup
                 self._attributes = {
                     "Detaily": {
                         "spotova_cena": f"{round(spot_price, 2)} Kč",
