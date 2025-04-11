@@ -34,8 +34,8 @@ binary_sensor:
     name: HDO_nizky_tarif
     psc: "smart"
     code_a: "Cd2526_3"   # kod smart elektromeru
-    price_vt: "2.12308"  # s DPH
-    price_nt: "0.22264"  # s DPH
+    price_vt: "2.5689268"  # s DPH
+    price_nt: "0.2693944"  # s DPH
 ```
 
 ## Konfigurace
@@ -57,8 +57,8 @@ Po instalaci přidejte integraci přes Nastavení > Zařízení a služby > Inte
 - Název: Název integrace (výchozí: Spotové ceny)
 - Distributor: Váš distributor elektřiny (EG.D, ČEZ, PRE) - EG.D - pro budoucí implementaci v rámci jedné integrace
 - Kód elektroměru: Kód elektroměru pro HDO - Cd2526_3 - pro budoucí implementaci v rámci jedné integrace
-- Cena VT: Cena ve vysokém tarifu (včetně DPH) - 2,12308
-- Cena NT: Cena v nízkém tarifu (včetně DPH) - 0,22264
+- Cena VT: Cena ve vysokém tarifu (včetně DPH) - 2,5689268
+- Cena NT: Cena v nízkém tarifu (včetně DPH) - 0,2693944
 - Entita spotové ceny: Entita poskytující spotové ceny (bez DPH) - sensor.current_spot_electricity_price
 - HDO entita: Entita poskytující informace o HDO (bez DPH) - binary_sensor.hdo_nizky_tarif
 - Další parametry pro výpočet ceny elektřiny (bez DPH)
