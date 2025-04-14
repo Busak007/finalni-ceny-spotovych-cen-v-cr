@@ -69,7 +69,7 @@ Po instalaci přidejte integraci přes Nastavení > Zařízení a služby > Inte
   - Výkup - -0,45
 ```
 ## Přidání grafu do lovelace 
-![electricity prices graph](docs/lovelace_graf.png)
+![electricity prices graph](docs/lovelace_graf1.png)
 ```
 type: custom:apexcharts-card
 header:
