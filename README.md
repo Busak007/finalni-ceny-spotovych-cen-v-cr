@@ -157,7 +157,8 @@ yaxis:
 
 
 ```
-Zároveň přidávám i konfiguraci grafu pro lidi, kteří mají pevnou cenu výkupu pak si v grafu nahraďte 1.23456 vaší cenou výkupu
+## Přidání grafu do lovelace - FIX prodej
+nahraďte 1.23456 vaší fixní cenou výkupu
 ![electricity prices graph](docs/lovelace_graf_FIX.png)
 ```
 type: custom:apexcharts-card
