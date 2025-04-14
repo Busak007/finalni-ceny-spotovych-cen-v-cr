@@ -157,4 +157,95 @@ yaxis:
 
 
 ```
-
+Zároveň přidávám i konfiguraci grafu pro lidi, kteří mají pevnou cenu výkupu pak si v grafu nahraďte 1.23456 vaší cenou výkupu
+![electricity prices graph](docs/lovelace_graf_FIX.png)
+```
+type: custom:apexcharts-card
+header:
+  show: true
+  show_states: true
+  colorize_states: true
+graph_span: 2d
+stacked: false
+apex_config:
+  tooltip:
+    "y":
+      formatter: |
+        function (val) {
+          return val.toFixed(2);
+        }
+span:
+  start: day
+  offset: +0d
+now:
+  show: true
+  label: Nyní
+  color: green
+series:
+  - entity: sensor.soucet
+    name: Nákup
+    color: orange
+    show:
+      in_chart: true
+      in_header: false
+      legend_value: false
+    type: column
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+    data_generator: >
+      const data = Object.entries(entity.attributes.Celkem).map(([date, value])
+      => {
+        return [new Date(date).getTime(), value];
+      }); const currentValue = parseFloat(entity.state); if
+      (!isNaN(currentValue)) {
+        data.push([Date.now(), currentValue]);
+      } return data;
+  - entity: sensor.vykup
+    name: Výkup
+    color: green
+    show:
+      in_chart: true
+      in_header: false
+      legend_value: false
+    type: line
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+    data_generator: >
+      return Object.entries(entity.attributes.Vykup_data).map(([date, value]) =>
+      {
+        return [new Date(date).getTime(), value *0 + 1.23456];
+      });
+  - entity: sensor.soucet
+    name: Nákup
+    color: orange
+    show:
+      in_chart: false
+      in_header: true
+    type: column
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+  - entity: sensor.vykup
+    name: Výkup
+    color: green
+    show:
+      in_chart: false
+      in_header: true
+    type: line
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+    data_generator: >
+      return Object.entries(entity.attributes.Vykup_data).map(([date, value]) =>
+      {
+        return [new Date(date).getTime(), value *0 + 1.23456];
+      });
+yaxis:
+  - decimals: 2
+```
