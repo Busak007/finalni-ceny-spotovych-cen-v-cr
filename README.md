@@ -78,6 +78,13 @@ header:
   colorize_states: true
 graph_span: 2d
 stacked: false
+apex_config:
+  tooltip:
+    "y":
+      formatter: |
+        function (val) {
+          return val.toFixed(2);
+        }
 span:
   start: day
   offset: +0d
@@ -89,29 +96,65 @@ series:
   - entity: sensor.soucet
     name: Nákup
     color: orange
+    show:
+      in_chart: true
+      in_header: false
+      legend_value: false
     type: column
     group_by:
       func: max
       duration: 1hour
     unit: Kč/kWh
     data_generator: >
-      return  Object.entries(entity.attributes.Celkem).map(([date, value],
-      index) => {
+      const data = Object.entries(entity.attributes.Celkem).map(([date, value])
+      => {
         return [new Date(date).getTime(), value];
-      });
+      }); const currentValue = parseFloat(entity.state); if
+      (!isNaN(currentValue)) {
+        data.push([Date.now(), currentValue]);
+      } return data;
   - entity: sensor.vykup
     name: Výkup
     color: green
+    show:
+      in_chart: true
+      in_header: false
+      legend_value: false
     type: line
     group_by:
       func: max
       duration: 1hour
     unit: Kč/kWh
     data_generator: >
-      return  Object.entries(entity.attributes.Vykup_data).map(([date, value],
-      index) => {
+      return Object.entries(entity.attributes.Vykup_data).map(([date, value]) =>
+      {
         return [new Date(date).getTime(), value];
       });
+  - entity: sensor.soucet
+    name: Nákup
+    color: orange
+    show:
+      in_chart: false
+      in_header: true
+    type: column
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+  - entity: sensor.vykup
+    name: Výkup
+    color: green
+    show:
+      in_chart: false
+      in_header: true
+    type: line
+    group_by:
+      func: max
+      duration: 1hour
+    unit: Kč/kWh
+yaxis:
+  - decimals: 2
+
 
 ```
 
