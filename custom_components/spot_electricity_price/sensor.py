@@ -145,31 +145,30 @@ class SpotElectricitySensor(SensorEntity):
                 }
 
             elif self._sensor_type == "Součet":
-                # Nastavení časové zóny (předpokládám středoevropský čas)
+                # Nastavení časové zóny (středoevropský čas)
                 local_tz = pytz.timezone('Europe/Prague')
                 
-                # Začátek dne (od půlnoci)
-                today_midnight = datetime.now(local_tz).replace(hour=0, minute=0, second=0, microsecond=0)
+                # Aktuální čas
+                now = datetime.now(local_tz)
                 
-                # Generování dat pro výpočet
-                celkove = 0.0
+                # Zaokrouhlíme na aktuální hodinu pro hledání v datech
+                current_hour = now.replace(minute=0, second=0, microsecond=0)
+                current_timestamp = current_hour.isoformat()
+                current_timestamp_short = current_timestamp.split("+")[0]
+                
+                # Výpočet aktuální celkové ceny - spotová cena + poplatky + HDO
+                aktualni_spot_cena = spot_price * 1.21  # Spotová cena vč. DPH
+                aktualni_celkova_cena = aktualni_spot_cena + poplatky + hdo_price
+                
+                # Nastavení aktuální hodnoty jako hodnotu senzoru
+                celkove = round(aktualni_celkova_cena, 2)
+                
+                # Generování dat pro celý den (pro graf)
                 celkem_data = {}
-                
-                # Debug výpis - zkontrolujeme strukturu HDO dat
-                if state_obj and state_obj.attributes:
-                    _LOGGER.info(f"Dostupné atributy HDO: {list(state_obj.attributes.keys())}")
-                    
-                    # Pokud existuje HDO_HOURLY, vypíšeme jeho struktur
-                    if "HDO_HOURLY" in state_obj.attributes:
-                        hdo_data = state_obj.attributes.get("HDO_HOURLY", {})
-                        _LOGGER.info(f"HDO_HOURLY je typu: {type(hdo_data)}")
-                        if isinstance(hdo_data, dict) and hdo_data:
-                            sample_key = next(iter(hdo_data))
-                            _LOGGER.info(f"Ukázka HDO klíče: {sample_key}, hodnota: {hdo_data[sample_key]}, typ hodnoty: {type(hdo_data[sample_key])}")
-                
-                # NOVÝ PŘÍSTUP: Použijeme aktuální HDO cenu pro celý den
-                # Toto by mělo fungovat i když nerozumíme přesně struktuře HDO_HOURLY
                 hourly_data_debug = {}
+                
+                # Začátek dne (od půlnoci)
+                today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 
                 for hour in range(48):
                     # Generujeme časovou značku ve stejném formátu jako vstupní data
@@ -193,46 +192,29 @@ class SpotElectricitySensor(SensorEntity):
                                     _LOGGER.warning(f"Neplatná hodnota spot price pro čas {spot_ts}")
                     
                     # Pro každou hodinu použijeme aktuální HDO cenu
-                    # Tím zajistíme, že HDO hodnota nebude nikdy nulová, pokud je k dispozici
-                    
                     # Pro debug
                     hourly_data_debug[timestamp] = {
                         "spot_value": spot_price_value, 
-                        "hdo_value": hdo_price  # Použijeme aktuální HDO hodnotu pro všechny hodiny
+                        "hdo_value": hdo_price
                     }
                     
-                    # Výpočet celkové hodnoty
+                    # Výpočet celkové hodnoty pro tuto hodinu
                     total_value = round(spot_price_value + poplatky + hdo_price, 2)
                     celkem_data[timestamp] = total_value
                 
                 # Zalogujeme pár záznamů pro debug
-                _LOGGER.info(f"Debug hodnoty pro první 3 hodiny (nový přístup): {dict(list(hourly_data_debug.items())[:3])}")
+                _LOGGER.info(f"Debug hodnoty pro první 3 hodiny: {dict(list(hourly_data_debug.items())[:3])}")
+                _LOGGER.info(f"Aktuální čas: {current_timestamp}, Aktuální celková cena: {aktualni_celkova_cena}")
                 
-                # Pokusíme se také získat strukturovaná HDO data přímo (alternativní přístup)
-                try:
-                    if state_obj and state_obj.attributes and "HDO_HOURLY" in state_obj.attributes:
-                        hdo_hourly = state_obj.attributes.get("HDO_HOURLY", {})
-                        _LOGGER.info(f"Prvních 5 klíčů HDO_HOURLY: {list(hdo_hourly.keys())[:5]}")
-                        
-                        if isinstance(hdo_hourly, dict):
-                            for k, v in list(hdo_hourly.items())[:5]:
-                                _LOGGER.info(f"HDO klíč: {k}, hodnota: {v}")
-                except Exception as e:
-                    _LOGGER.error(f"Chyba při pokusu o výpis HDO_HOURLY: {e}")
-
                 self._attributes = {
                     "Celkem": celkem_data,
-                    "Debug_data": dict(list(hourly_data_debug.items())[:5]),  # Ukládáme 5 záznamů pro kontrolu
+                    "Debug_data": dict(list(hourly_data_debug.items())[:5]),
                     "Distribuce_data": state_obj.attributes.get("HDO_HOURLY", {}) if state_obj else {},
                     "Spot_data": spot_obj.attributes if spot_obj else {},
-                    "Aktualni_HDO_hodnota": hdo_price,  # Přidáme aktuální HDO hodnotu pro debug
+                    "Aktualni_HDO_hodnota": hdo_price,
+                    "Aktualni_cas": current_timestamp,
+                    "Aktualni_spotova_cena": aktualni_spot_cena,
                 }
-                
-                # Vypočítat průměrnou celkovou cenu jako stav senzoru
-                if celkem_data:
-                    celkove = sum(celkem_data.values()) / len(celkem_data)
-                else:
-                    celkove = 0.0
 
             else:
                 self._attributes = {}
