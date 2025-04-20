@@ -185,7 +185,7 @@ class SpotElectricitySensor(SensorEntity):
                             # Normalizace timestampu (odstraníme timezone)
                             dt = datetime.fromisoformat(timestamp)
                             naive_ts = dt.replace(tzinfo=None).isoformat()
-                            spot_data[naive_ts] = float(value) * 1.21
+                            spot_data[naive_ts] = float(value)
                         except (ValueError, TypeError):
                             _LOGGER.warning(f"Neplatná hodnota spot price pro čas {timestamp}")
                             continue
