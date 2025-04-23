@@ -69,6 +69,35 @@ class SpotElectricitySensor(SensorEntity):
         self._state = None
         self._attributes = {}
 
+    def _parse_time_str(self, time_str):
+        """Převede časový řetězec na hodiny a minuty.
+        Podporuje formáty: 
+        - "5" (5 hodin)
+        - "5:30" nebo "5:30" (5 hodin a 30 minut)
+        - "05:30" (5 hodin a 30 minut)
+        """
+        time_str = time_str.strip()
+        if ":" in time_str:
+            parts = time_str.split(":")
+            return int(parts[0]), int(parts[1])
+        else:
+            return int(time_str), 0
+
+    def _is_in_nt_period(self, check_time, nt_ranges):
+        """Kontroluje, zda je daný čas v některém NT období."""
+        check_hour = check_time.hour
+        check_minute = check_time.minute
+        check_total_minutes = check_hour * 60 + check_minute
+        
+        for start_hour, start_minute, end_hour, end_minute in nt_ranges:
+            start_total_minutes = start_hour * 60 + start_minute
+            end_total_minutes = end_hour * 60 + end_minute
+            
+            if start_total_minutes <= check_total_minutes < end_total_minutes:
+                return True
+        
+        return False
+
     async def async_update(self):
         """Aktualizace senzoru."""
         now = datetime.now()
@@ -144,26 +173,33 @@ class SpotElectricitySensor(SensorEntity):
                 for period in hdo_raw_times.split(","):
                     try:
                         start_str, end_str = period.strip().split("-")
-                        start_hour = int(start_str.strip())
-                        end_hour = int(end_str.strip())
-                        nt_ranges.append((start_hour, end_hour))
-                    except ValueError:
+                        
+                        # Nové parsování, které podporuje formát s minutami
+                        start_hour, start_minute = self._parse_time_str(start_str)
+                        end_hour, end_minute = self._parse_time_str(end_str)
+                        
+                        # Přidáme všechny 4 hodnoty pro přesnou kontrolu času
+                        nt_ranges.append((start_hour, start_minute, end_hour, end_minute))
+                    except ValueError as e:
+                        _LOGGER.warning(f"Chyba při parsování HDO času '{period}': {e}")
                         continue
 
                 # Vygenerování timestampů pro následujících 48 hodin
-                midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                # Start od aktuální hodiny
+                current_hour = now.replace(minute=0, second=0, microsecond=0)
                 hourly_prices = {}
 
-                for i in range(48):
-                    time_point = midnight + timedelta(hours=i)
-                    hour = time_point.hour
-                    price = self._price_vt  # výchozí VT
+                # Vytvoření seznamu časových bodů pro každých 15 minut v následujících 48 hodinách
+                time_points = []
+                for i in range(48 * 4):  # 48 hodin x 4 (každých 15 minut)
+                    minutes = i * 15
+                    time_point = current_hour + timedelta(minutes=minutes)
+                    time_points.append(time_point)
 
-                    for start, end in nt_ranges:
-                        if start <= hour < end:
-                            price = self._price_nt
-                            break
-
+                # Pro každý časový bod zkontrolujeme, zda je v NT nebo VT pásmu
+                for time_point in time_points:
+                    is_nt = self._is_in_nt_period(time_point, nt_ranges)
+                    price = self._price_nt if is_nt else self._price_vt
                     hourly_prices[time_point.isoformat()] = price
 
                 self._attributes = {
@@ -172,6 +208,7 @@ class SpotElectricitySensor(SensorEntity):
                     "Cena NT": self._price_nt,
                     "Cena VT": self._price_vt,
                     "Časy HDO Od Do": hdo_raw_times,
+                    "Časové intervaly": [f"{sh}:{sm:02d}-{eh}:{em:02d}" for sh, sm, eh, em in nt_ranges],
                     "Aktuálně": state_obj.state,
                     "hodinove_ceny": hourly_prices,
                 }
@@ -202,7 +239,6 @@ class SpotElectricitySensor(SensorEntity):
                         except Exception:
                             continue
 
-
                 # Vytvoření společného slovníku s výslednými cenami
                 celkem_data = {}
                 
@@ -218,7 +254,6 @@ class SpotElectricitySensor(SensorEntity):
                     celkem = spot_s_dph + hdo_cena + poplatky
 
                     celkem_data[timestamp] = round(celkem, 4)  # nebo 5–6 pro vyšší přesnost
-
 
                 # Aktuální cena - vezmeme nejbližší hodinu
                 current_hour = now.replace(minute=0, second=0, microsecond=0)
@@ -248,8 +283,6 @@ class SpotElectricitySensor(SensorEntity):
                         ),
                     }
                 }
-
-
 
             else:
                 self._attributes = {}
