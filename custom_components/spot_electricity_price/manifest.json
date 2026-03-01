@@ -2,14 +2,10 @@
   "domain": "spot_electricity_price",
   "name": "Spotové ceny",
   "config_flow": true,
-  "documentation": "https://example.com",
-  "requirements": [],
-  "ssdp": [],
-  "zeroconf": [],
-  "homekit": {},
+  "documentation": "https://github.com/Busak007/finalni-ceny-spotovych-cen-v-cr",
+  "requirements": ["holidays>=0.25"],
   "dependencies": [],
-  "codeowners": ["@RadekBuš"],
-  "iot_class": "cloud_polling",
-  "version": "0.1.0",
-  "icon": "local://ikona.png"
+  "codeowners": ["@RadekBus"],
+  "iot_class": "local_polling",
+  "version": "0.1.0"
 }

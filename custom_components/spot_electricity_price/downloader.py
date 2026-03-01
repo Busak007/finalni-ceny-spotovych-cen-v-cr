@@ -14,7 +14,6 @@ def get_HDO():
 
 
 def parse_region(jsonRegion, psc):
-    psc = "smart"
     if psc == "smart":
         region = "X"
     else:
@@ -80,7 +79,7 @@ def parse_HDO(self, jsonHDO, HDORegion, HDO_A, HDO_B, HDO_DP, HDO_priceNT, HDO_p
         if date_time_od_obj.date() <= date_now <= date_time_do_obj.date():
             for tarifs in itemData['sazby']:
                 for days in tarifs['dny']:
-                    if get_holiday(date_now) == True:
+                    if get_holiday(date_now):
                         if 7 == days['denVTydnu']:
                             for times in days['casy']:
                                 HDO_Cas_Od.append(times['od'])
@@ -91,7 +90,7 @@ def parse_HDO(self, jsonHDO, HDORegion, HDO_A, HDO_B, HDO_DP, HDO_priceNT, HDO_p
                                 HDO_Cas_Od.append(times['od'])
                                 HDO_Cas_Do.append(times['do'])
 
-                    if get_holiday(date_tomorrow) == True:
+                    if get_holiday(date_tomorrow):
                         if 7 == days['denVTydnu']:
                             for times in days['casy']:
                                 HDO_Cas_Od_zitra.append(times['od'])
@@ -122,7 +121,7 @@ def parse_HDO(self, jsonHDO, HDORegion, HDO_A, HDO_B, HDO_DP, HDO_priceNT, HDO_p
 
             HDO_Status = get_status(
                 datetime.now().replace(second=0, microsecond=0), HDO_Cas_Od, HDO_Cas_Do)
-            if HDO_Status == True:
+            if HDO_Status:
                 price = HDO_priceNT
 
             for x in range(0, (24*4)):

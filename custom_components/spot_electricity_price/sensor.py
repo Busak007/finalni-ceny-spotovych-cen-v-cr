@@ -1,7 +1,7 @@
 """Sensor platform for Spot Electricity Price integration."""
 import logging
-import pytz
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -27,19 +27,21 @@ CONF_DISTRIBUTOR = "distributor"
 CONF_PRICE_VT = "price_vt"
 CONF_PRICE_NT = "price_nt"
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up sensor platform."""
-    async_add_entities([ 
+    async_add_entities([
         SpotElectricitySensor(config_entry, "Nákup"),
         SpotElectricitySensor(config_entry, "Výkup"),
         SpotElectricitySensor(config_entry, "Součet"),
         SpotElectricitySensor(config_entry, "Distributor"),
         SpotElectricitySensor(config_entry, "HDO"),
     ])
+
 
 class SpotElectricitySensor(SensorEntity):
     """Reprezentace senzoru spot electricity price."""
@@ -48,228 +50,25 @@ class SpotElectricitySensor(SensorEntity):
         """Initialize the sensor."""
         self._config_entry = config_entry
         self._sensor_type = sensor_type
-        self._name = f"{config_entry.data.get(CONF_NAME, '')} {sensor_type}"
-        self._spot_price_entity = config_entry.data.get(CONF_SPOT_PRICE_ENTITY)
-        self._hdo_entity = config_entry.data.get(CONF_HDO_ENTITY)
-
-        # Konfigurace parametrů
-        self._prodej = config_entry.data.get(CONF_PRODEJ)
-        self._kod_elektromeru = config_entry.data.get(CONF_A)
-        self._psc = config_entry.data.get(CONF_PSC)
-        self._name_hdo = config_entry.data.get(CONF_NAME_HDO)
-        self._distributor = config_entry.data.get(CONF_DISTRIBUTOR)
-        self._price_vt = config_entry.data.get(CONF_PRICE_VT)
-        self._price_nt = config_entry.data.get(CONF_PRICE_NT)
-        
-        self._dan_z_elektriny = config_entry.data.get(CONF_DAN_Z_ELEKTRINY)
-        self._cena_systemovych_sluzeb = config_entry.data.get(CONF_CENA_SYSTEMOVYCH_SLUZEB)
-        self._oze = config_entry.data.get(CONF_OZE)
-        self._vykup = config_entry.data.get(CONF_VYKUP)
-
         self._state = None
         self._attributes = {}
 
-    async def async_update(self):
-        """Aktualizace senzoru."""
-        now = datetime.now()
-        
-        try:
-            # Získání aktuálních hodnot
-            spot_obj = self.hass.states.get(self._spot_price_entity)
-            spot_price = float(spot_obj.state) if spot_obj else 0.0
-            
-            state_obj = self.hass.states.get(self._hdo_entity)
-            hdo_state = state_obj.state if state_obj else "unknown"
-            hdo_price = float(state_obj.attributes.get("current_price", 0.0)) if state_obj else 0.0
-
-            # Výpočet poplatků
-            poplatky = (self._oze + self._cena_systemovych_sluzeb +
-                        self._dan_z_elektriny + self._prodej) * 1.21
-
-            if self._sensor_type == "Nákup":
-                celkove = spot_price * 1.21 + poplatky + hdo_price
-                self._attributes = {
-                    "Detaily": {
-                        "spotova_cena": f"{round(spot_price, 2)} Kč",
-                        "distribuce": f"{round(hdo_price, 2)} Kč",
-                        "poplatky": f"{round(poplatky, 2)} Kč",
-                        "stav_HDO": hdo_state,
-                    },
-                    "Distribuce_data": state_obj.attributes.get("HDO_HOURLY", {}) if state_obj else {},
-                    "Spot_data": spot_obj.attributes if spot_obj else {}
-                }
-
-            elif self._sensor_type == "Výkup":
-                celkove = spot_price + self._vykup
-                
-                # Vytvoříme slovník pro hodinové výkupní ceny
-                vykup_data = {}
-                
-                # Zpracování dat ze spotových cen s přidáním výkupní ceny
-                if spot_obj and spot_obj.attributes:
-                    for timestamp, value in spot_obj.attributes.items():
-                        try:
-                            spot_value = float(value)
-                            vykup_value = spot_value + self._vykup
-                            vykup_data[timestamp] = round(vykup_value, 2)
-                        except (ValueError, TypeError):
-                            _LOGGER.warning(f"Neplatná hodnota spot price pro čas {timestamp}")
-                            
-                self._attributes = {
-                    "Detaily": {
-                        "spotova_cena": f"{round(spot_price, 2)} Kč",
-                        "vykup": f"{round(self._vykup, 2)} Kč",
-                    },
-                    "Spot_data": spot_obj.attributes if spot_obj else {},
-                    "Vykup_data": vykup_data
-                }
-
-            elif self._sensor_type == "Distributor":
-                celkove = 0
-                self._state = self._distributor
-                self._attributes = {
-                    "Uzemi": self._distributor
-                }
-
-            elif self._sensor_type == "HDO":
-                state_obj = self.hass.states.get(self._hdo_entity)
-                if state_obj and state_obj.state == "on":
-                    celkove = self._price_nt
-                else:
-                    celkove = self._price_vt
-
-                # Parsování HDO časů
-                hdo_raw_times = state_obj.attributes.get("HDO Times", "")
-                nt_ranges = []
-                for period in hdo_raw_times.split(","):
-                    try:
-                        start_str, end_str = period.strip().split("-")
-                        start_hour = int(start_str.strip())
-                        end_hour = int(end_str.strip())
-                        nt_ranges.append((start_hour, end_hour))
-                    except ValueError:
-                        continue
-
-                # Vygenerování timestampů pro následujících 48 hodin
-                midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                hourly_prices = {}
-
-                for i in range(48):
-                    time_point = midnight + timedelta(hours=i)
-                    hour = time_point.hour
-                    price = self._price_vt  # výchozí VT
-
-                    for start, end in nt_ranges:
-                        if start <= hour < end:
-                            price = self._price_nt
-                            break
-
-                    hourly_prices[time_point.isoformat()] = price
-
-                self._attributes = {
-                    "PSC": self._psc,
-                    "Kod": self._kod_elektromeru,
-                    "Cena NT": self._price_nt,
-                    "Cena VT": self._price_vt,
-                    "Časy HDO Od Do": hdo_raw_times,
-                    "Aktuálně": state_obj.state,
-                    "hodinove_ceny": hourly_prices,
-                }
-
-            elif self._sensor_type == "Součet":
-                # Získání dat ze spotových cen
-                spot_data = {}
-                if spot_obj and spot_obj.attributes:
-                    for timestamp, value in spot_obj.attributes.items():
-                        try:
-                            # Normalizace timestampu (odstraníme timezone)
-                            dt = datetime.fromisoformat(timestamp)
-                            naive_ts = dt.replace(tzinfo=None).isoformat()
-                            spot_data[naive_ts] = float(value)
-                        except (ValueError, TypeError):
-                            _LOGGER.warning(f"Neplatná hodnota spot price pro čas {timestamp}")
-                            continue
-
-                # Získání dat z HDO cen (z entity sensor.hdo)
-                hdo_entity = self.hass.states.get('sensor.hdo')
-                hdo_data = {}
-                if hdo_entity and 'hodinove_ceny' in hdo_entity.attributes:
-                    for timestamp, value in hdo_entity.attributes['hodinove_ceny'].items():
-                        try:
-                            dt = datetime.fromisoformat(timestamp)
-                            naive_ts = dt.replace(tzinfo=None).isoformat()
-                            hdo_data[naive_ts] = float(value)
-                        except Exception:
-                            continue
-
-
-                # Vytvoření společného slovníku s výslednými cenami
-                celkem_data = {}
-                
-                # Projdeme všechny časové značky, které máme k dispozici
-                all_timestamps = set(spot_data.keys()).union(set(hdo_data.keys()))
-                
-                for timestamp in sorted(all_timestamps):
-                    spot_raw = spot_data.get(timestamp, 0.0)
-                    hdo_cena = hdo_data.get(timestamp, 0.0)
-
-                    # Skutečný výpočet až na konci
-                    spot_s_dph = spot_raw * 1.21
-                    celkem = spot_s_dph + hdo_cena + poplatky
-
-                    celkem_data[timestamp] = round(celkem, 4)  # nebo 5–6 pro vyšší přesnost
-
-
-                # Aktuální cena - vezmeme nejbližší hodinu
-                current_hour = now.replace(minute=0, second=0, microsecond=0)
-                current_timestamp = current_hour.isoformat()
-                
-                # Najdeme aktuální cenu
-                aktualni_celkova_cena = celkem_data.get(current_timestamp, 0.0)
-                celkove = round(aktualni_celkova_cena, 2)
-
-                # Příprava atributů
-                self._attributes = {
-                    "Celkem": celkem_data,
-                    "Spot_data": spot_obj.attributes if spot_obj else {},
-                    "HDO_data": hdo_data,
-                    "Poplatky": round(poplatky, 2),
-                    "Aktualni_cas": current_timestamp,
-                    "Aktualni_celkova_cena": celkove,
-                    "Debug": {
-                        "Spot_raw": spot_data.get(current_timestamp, 0.0),
-                        "Spot_s_dph": round(spot_data.get(current_timestamp, 0.0) * 1.21, 6),
-                        "HDO": hdo_data.get(current_timestamp, 0.0),
-                        "Poplatky": round(poplatky, 6),
-                        "Součet_před_zaokrouhlením": (
-                            spot_data.get(current_timestamp, 0.0) * 1.21 +
-                            hdo_data.get(current_timestamp, 0.0) +
-                            poplatky
-                        ),
-                    }
-                }
-
-
-
-            else:
-                self._attributes = {}
-                celkove = 0.0
-
-            self._state = round(celkove, 2)
-
-        except Exception as e:
-            _LOGGER.error(f"Chyba při aktualizaci senzoru ({self._sensor_type}): {e}")
-            import traceback
-            _LOGGER.error(f"Traceback: {traceback.format_exc()}")
+    def _conf(self, key, default=None):
+        """Číst konfiguraci — nejdříve z options, pak z data."""
+        return self._config_entry.options.get(
+            key, self._config_entry.data.get(key, default)
+        )
 
     @property
     def name(self):
-        return self._name
+        config_name = self._conf(CONF_NAME, "Spotové ceny")
+        return f"{config_name} {self._sensor_type}"
 
     @property
     def unique_id(self):
         """Unique identifier for the sensor."""
-        return f"{DOMAIN}_{self._sensor_type.lower()}_{self._name.replace(' ', '_').lower()}"
+        config_name = self._conf(CONF_NAME, "Spotové ceny")
+        return f"{DOMAIN}_{self._sensor_type.lower()}_{config_name.replace(' ', '_').lower()}"
 
     @property
     def state(self):
@@ -281,19 +80,195 @@ class SpotElectricitySensor(SensorEntity):
 
     @property
     def unit_of_measurement(self):
-        return "Kč"
+        if self._sensor_type == "Distributor":
+            return None
+        return "Kč/kWh"
 
     @property
     def device_class(self):
+        if self._sensor_type == "Distributor":
+            return None
         return SensorDeviceClass.MONETARY
 
     @property
     def device_info(self):
-        """Vrací informace o zařízení, ke kterému senzor patří."""
+        """Vrací informace o zařízení."""
         return {
             "identifiers": {(DOMAIN, "spotove_ceny")},
             "name": "Spotové ceny",
-            "manufacturer": "@RadekBus",
+            "manufacturer": "RadekBus",
             "model": "Spotové ceny",
             "entry_type": "service",
         }
+
+    def _compute_hdo_hourly(self, state_obj, now: datetime, price_nt: float, price_vt: float) -> dict:
+        """Vypočítat hodinové HDO ceny pro 48 hodin na základě HDO entita atributů."""
+        hdo_data = {}
+        if not state_obj:
+            return hdo_data
+
+        hdo_raw_times = state_obj.attributes.get("HDO Times", "")
+        nt_ranges = []
+        for period in hdo_raw_times.split(","):
+            try:
+                start_str, end_str = period.strip().split("-")
+                nt_ranges.append((int(start_str.strip()), int(end_str.strip())))
+            except ValueError:
+                continue
+
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        for i in range(48):
+            time_point = midnight + timedelta(hours=i)
+            hour = time_point.hour
+            price = price_vt
+            for start, end in nt_ranges:
+                if start <= hour < end:
+                    price = price_nt
+                    break
+            hdo_data[time_point.isoformat()] = float(price)
+
+        return hdo_data
+
+    async def async_update(self):
+        """Aktualizace senzoru."""
+        try:
+            local_tz = ZoneInfo(self.hass.config.time_zone)
+            # Lokální čas jako naivní datetime pro konzistenci s generovanými timestampy
+            now = datetime.now(tz=local_tz).replace(tzinfo=None)
+
+            spot_price_entity = self._conf(CONF_SPOT_PRICE_ENTITY)
+            hdo_entity_id = self._conf(CONF_HDO_ENTITY)
+            price_nt = float(self._conf(CONF_PRICE_NT, 0.0))
+            price_vt = float(self._conf(CONF_PRICE_VT, 0.0))
+            prodej = float(self._conf(CONF_PRODEJ, 0.0))
+            dan_z_elektriny = float(self._conf(CONF_DAN_Z_ELEKTRINY, 0.0))
+            cena_systemovych_sluzeb = float(self._conf(CONF_CENA_SYSTEMOVYCH_SLUZEB, 0.0))
+            oze = float(self._conf(CONF_OZE, 0.0))
+            vykup = float(self._conf(CONF_VYKUP, 0.0))
+
+            spot_obj = self.hass.states.get(spot_price_entity) if spot_price_entity else None
+            hdo_obj = self.hass.states.get(hdo_entity_id) if hdo_entity_id else None
+
+            if spot_obj is None and self._sensor_type not in ("Distributor", "HDO"):
+                _LOGGER.warning("Entita spotové ceny '%s' nenalezena", spot_price_entity)
+
+            spot_price = 0.0
+            if spot_obj and spot_obj.state not in ("unknown", "unavailable", None):
+                try:
+                    spot_price = float(spot_obj.state)
+                except (ValueError, TypeError):
+                    _LOGGER.warning("Neplatný stav entity spotové ceny: %s", spot_obj.state)
+
+            hdo_state = hdo_obj.state if hdo_obj else "unknown"
+            hdo_price = 0.0
+            if hdo_obj:
+                try:
+                    hdo_price = float(hdo_obj.attributes.get("current_price", 0.0))
+                except (ValueError, TypeError):
+                    pass
+
+            # Výpočet poplatků (bez DPH × 1,21)
+            poplatky = (oze + cena_systemovych_sluzeb + dan_z_elektriny + prodej) * 1.21
+
+            if self._sensor_type == "Nákup":
+                celkove = spot_price * 1.21 + poplatky + hdo_price
+                self._attributes = {
+                    "Detaily": {
+                        "spotova_cena": round(spot_price, 4),
+                        "distribuce": round(hdo_price, 4),
+                        "poplatky": round(poplatky, 4),
+                        "stav_HDO": hdo_state,
+                    },
+                    "Distribuce_data": hdo_obj.attributes.get("HDO_HOURLY", {}) if hdo_obj else {},
+                    "Spot_data": dict(spot_obj.attributes) if spot_obj else {},
+                }
+
+            elif self._sensor_type == "Výkup":
+                celkove = spot_price + vykup
+                vykup_data = {}
+                if spot_obj and spot_obj.attributes:
+                    for timestamp, value in spot_obj.attributes.items():
+                        try:
+                            vykup_data[timestamp] = round(float(value) + vykup, 4)
+                        except (ValueError, TypeError):
+                            pass
+                self._attributes = {
+                    "Detaily": {
+                        "spotova_cena": round(spot_price, 4),
+                        "vykup": round(vykup, 4),
+                    },
+                    "Spot_data": dict(spot_obj.attributes) if spot_obj else {},
+                    "Vykup_data": vykup_data,
+                }
+
+            elif self._sensor_type == "Distributor":
+                distributor = self._conf(CONF_DISTRIBUTOR, "")
+                self._state = distributor
+                self._attributes = {"Uzemi": distributor}
+                return
+
+            elif self._sensor_type == "HDO":
+                if hdo_obj and hdo_obj.state == "on":
+                    celkove = price_nt
+                else:
+                    celkove = price_vt
+
+                hourly_prices = self._compute_hdo_hourly(hdo_obj, now, price_nt, price_vt)
+                hdo_raw_times = hdo_obj.attributes.get("HDO Times", "") if hdo_obj else ""
+
+                self._attributes = {
+                    "PSC": self._conf(CONF_PSC, ""),
+                    "Kod": self._conf(CONF_A, ""),
+                    "Cena NT": price_nt,
+                    "Cena VT": price_vt,
+                    "Časy HDO Od Do": hdo_raw_times,
+                    "Aktuálně": hdo_state,
+                    "hodinove_ceny": hourly_prices,
+                }
+
+            elif self._sensor_type == "Součet":
+                # Normalizace spot dat na lokální naivní timestampy
+                spot_data = {}
+                if spot_obj and spot_obj.attributes:
+                    for timestamp, value in spot_obj.attributes.items():
+                        try:
+                            dt = datetime.fromisoformat(str(timestamp))
+                            if dt.tzinfo is not None:
+                                dt = dt.astimezone(local_tz).replace(tzinfo=None)
+                            spot_data[dt.isoformat()] = float(value)
+                        except (ValueError, TypeError):
+                            pass
+
+                # HDO hodinové ceny — vypočítáme přímo z HDO entity
+                hdo_data = self._compute_hdo_hourly(hdo_obj, now, price_nt, price_vt)
+
+                # Kombinace spot + HDO + poplatky pro všechny dostupné hodiny
+                celkem_data = {}
+                all_timestamps = set(spot_data.keys()) | set(hdo_data.keys())
+                for timestamp in sorted(all_timestamps):
+                    spot_raw = spot_data.get(timestamp, 0.0)
+                    hdo_cena = hdo_data.get(timestamp, 0.0)
+                    celkem_data[timestamp] = round(spot_raw * 1.21 + hdo_cena + poplatky, 4)
+
+                # Aktuální cena pro aktuální hodinu
+                current_ts = now.replace(minute=0, second=0, microsecond=0).isoformat()
+                aktualni = celkem_data.get(current_ts, 0.0)
+                celkove = round(aktualni, 2)
+
+                self._attributes = {
+                    "Celkem": celkem_data,
+                    "Spot_data": dict(spot_obj.attributes) if spot_obj else {},
+                    "HDO_data": hdo_data,
+                    "Poplatky": round(poplatky, 4),
+                    "Aktualni_cas": current_ts,
+                    "Aktualni_celkova_cena": celkove,
+                }
+
+            else:
+                self._attributes = {}
+                celkove = 0.0
+
+            self._state = round(celkove, 2)
+
+        except Exception as e:
+            _LOGGER.error("Chyba při aktualizaci senzoru (%s): %s", self._sensor_type, e, exc_info=True)
