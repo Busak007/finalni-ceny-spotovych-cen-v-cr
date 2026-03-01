@@ -11,16 +11,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Spot Electricity Price from a config entry."""
-    # Forward the entry setup to both sensor and binary_sensor platforms
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor"])
-    
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    # Unload both sensor and binary_sensor platforms
-    unload_ok = await hass.config_entries.async_forward_entry_unload_platforms(
-        entry, ["sensor", "binary_sensor"]
-    )
-    
-    return unload_ok
+    return await hass.config_entries.async_forward_entry_unload_platforms(entry, ["sensor"])
